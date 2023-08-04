@@ -1,0 +1,30 @@
+### System Dependencies
+
+# apt install python3-dev default-libmysqlclient-dev build-essential pkg-config
+
+
+### Databases
+
+## Main (postgresq)
+CREATE TABLE bars (id INTEGER PRIMARY KEY, description VARCHAR(5));
+INSERT INTO bars (id, description) VALUES (1, 'AAA');
+INSERT INTO bars (id, description) VALUES (2, 'BBB');
+
+
+## Secondary (mariadb)
+CREATE TABLE foos (
+    id INTEGER PRIMARY KEY, 
+    description VARCHAR (5)
+);
+INSERT INTO foos (id, description) VALUES (1, 'ABC');
+INSERT INTO foos (id, description) VALUES (2, 'DEF');
+INSERT INTO foos (id, description) VALUES (3, 'GHI');
+
+
+$ python3 -m venv venv
+$ source venv/bin/activate
+$ pip install -r requirements.txt
+
+$ flask --app main run --debug
+
+
