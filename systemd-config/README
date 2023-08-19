@@ -6,8 +6,132 @@ $ source venv/bin/activate
 $ pip install -r requirements.txt
 ```
 
+
 # Deploy
 
 ```
 $ gunicorn main:app
+```
+
+
+# Nginx + Systemd
+
+## Install Nginx
+
+```
+# apt install nginx
+```
+
+## Configure required user:
+
+```
+# groupadd -r gunicorn
+# useradd -r -g gunicorn -s /sbin/nologin gunicorn
+```
+
+## Deploy to web directory:
+
+```
+# mkdir -p /var/www/gunicorn/systemd-config
+# cp -r /home/user/systemd-config/* /var/www/gunicorn/systemd-config/
+# cd /var/www/gunicorn/systemd-config
+# python3 -m venv venv
+# source venv/bin/activate
+# pip install -r requirements.txt
+# deactivate
+```
+
+## Configure systemd service:
+
+```
+# mkdir /etc/gunicorn
+# mkdir /var/log/gunicorn
+# chown gunicorn:gunicorn /var/log/gunicorn
+```
+
+### /etc/gunicorn/systemd-config:
+
+```
+PORT=8000
+SRC_PATH="/var/www/gunicorn/systemd-config"
+ENV_PATH="/var/www/gunicorn/systemd-config/venv"
+APP_NAME="main"
+ACCESS_LOGFILE="/var/log/gunicorn/systemd-config-access.log"
+ERROR_LOGFILE="/var/log/gunicorn/systemd-config-error.log"
+```
+
+### /usr/local/bin/start-gunicorn:
+
+```
+#!/bin/bash
+
+exec "${ENV_PATH}/bin/gunicorn" \
+        --bind="127.0.0.1:${PORT}" \
+        --access-logformat="%({X-Real-IP}i)s %(l)s %(u)s %(t)s \'%(r)s\' %(s)s %(b)s \'%(f)s\' \'%(a)s\'" \
+        --access-logfile="$ACCESS_LOGFILE" \
+        --error-logfile="$ERROR_LOGFILE" \
+        --log-level="warning" \
+        --chdir="$SRC_PATH" \
+        "${APP_NAME}.wsgi:app"
+```
+
+```
+# chmod +x /usr/local/bin/start-gunicorn
+```
+
+
+### /etc/systemd/system/gunicorn@.service:
+
+```
+[Unit]
+Description=Gunicorn daemon for %I
+After=network.target
+After=syslog.target
+
+[Service]
+Type=notify
+User=gunicorn
+Group=gunicorn
+RuntimeDirectory=gunicorn
+WorkingDirectory=/var/www/gunicorn/%i
+EnvironmentFile=/etc/gunicorn/%i
+ExecStart=/usr/local/bin/start-gunicorn
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```
+# systemctl daemon-reload
+# systemctl enable --now gunicorn@systemd-config
+```
+
+
+## Configure Nginx:
+
+### /etc/nginx/sites-available/systemd-config:
+
+```
+server_tokens               off;
+access_log                  /var/log/nginx/systemd-config-access.log;
+error_log                   /var/log/nginx/systemd-config-error.log;
+
+server {
+  server_name               <your.server.com>;
+  listen                    80;
+  location / {
+    proxy_pass              http://127.0.0.1:8000;
+    proxy_set_header        Host $host;
+  }
+}
+```
+
+```
+# ln -s /etc/nginx/sites-available/systemd-config /etc/nginx/sites-enabled/
+# nginx -t
+# systemctl restart nginx
 ```
